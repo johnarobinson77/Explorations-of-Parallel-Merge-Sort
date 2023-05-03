@@ -39,7 +39,7 @@ The Performace section will discuss the performance of each of these.
 
 ## The Code
 
-The above sorting functions are implemented in a class called bfMergeSort&lt;> in file bfMergeSort.h.
+The above sorting functions are implemented in a class called bfMergeSort&lt;> in file bfMergeSort.hpp.
 
 
 ### The Merge Functions 
