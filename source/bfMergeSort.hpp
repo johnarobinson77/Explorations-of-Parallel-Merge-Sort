@@ -58,8 +58,8 @@ public:
 private:
   // the next series of methods are utility fuctions that are used by the various sort routines.
 
-#define min(a,b) ((a)<(b) ? (a) : (b))
-#define max(a,b) ((a)>(b) ? (a) : (b))
+#define minimum(a,b) ((a)<(b) ? (a) : (b))
+#define maximum(a,b) ((a)>(b) ? (a) : (b))
 
   //this parity generator routine was was first attributed to https://graphics.stanford.edu/~seander/bithacks.html#ParityWith64Bits
   inline bool getParity32(size_t n)
@@ -70,13 +70,13 @@ private:
     return (n & 0x10000000) == 0x10000000;
   }
 
-  // this routine does an interger devision rounded up.
+  // this routine does an interger division rounded up.
   inline size_t iDivUp(size_t a, size_t b)
   {
     return ((a % b) == 0) ? (a / b) : (a / b + 1);
   }
 
-  // ParallelMerge and it's supporting functions getMergPaths and mergePath are a CPU implementation of
+  // ParallelMerge and it's supporting functions getMergePaths and mergePath are a CPU implementation of
   // parallel merge function developed for GPUs described in "GPU Merge Path: A GPU Merging Algorithm" by Greenand, McColl, and Bader.
   // Proceedings of the 26th ACM International Conference on Supercomputing
 
@@ -84,8 +84,8 @@ private:
   template <bool DIR>
   size_t mergePath(T valA[], int64_t aCount, T valB[], int64_t bCount, int64_t diag, int64_t N) {
 
-    size_t begin = max(0, diag - bCount);
-    size_t end = min(diag, aCount);
+    size_t begin = maximum(0, diag - bCount);
+    size_t end = minimum(diag, aCount);
 
     while (begin < end) {
       size_t mid = begin + ((end - begin) >> 1);
@@ -107,7 +107,7 @@ private:
     mpi[0] = 0;  
     mpi[partitions] = aCount;
     
-    parallelFor(1, partitions, [=](int64_t i) {
+    parallelFor((int64_t)1, partitions, [=](int64_t i) {
       int64_t diag = i * spacing;
       mpi[i] = mergePath<DIR>(valA, aCount, valB, bCount, diag, N);
       }, threads);
@@ -129,12 +129,12 @@ private:
     int64_t spacing = iDivUp(aCount + bCount, threads);
     getMergePaths<DIR>(mpi, &(src[aBeg]), aCount, &(src[bBeg]), bCount, spacing, N);
 
-    parallelFor(0, threads, [=](int64_t thread) {
+    parallelFor((size_t)0, threads, [=](int64_t thread) {
       size_t grid = thread * spacing;		// Calculate the relevant index ranges into the source array
       size_t a0 = mpi[thread] + aBeg;				// for this partition
       size_t a1 = mpi[thread + 1] + aBeg;
       size_t b0 = (grid - mpi[thread]) + bBeg;
-      size_t b1 = (min(aCount + bCount, grid + spacing) - mpi[thread + 1]) + bBeg;
+      size_t b1 = (minimum(aCount + bCount, grid + spacing) - mpi[thread + 1]) + bBeg;
       size_t wtid = dBeg + thread * spacing;  //Place where this thread will start writing the data
  
       if (a0 == a1) {							// If no a data just copy b
@@ -328,7 +328,7 @@ private:
 // pivots that could lead to poor performance.
   int64_t pivotPicker(T arry[], int64_t lower, int64_t upper) {
     const size_t maxIdxs = 11;
-    int64_t idxs = min(maxIdxs, (upper - lower));
+    int64_t idxs = minimum(maxIdxs, (upper - lower));
     int64_t medianIdxs[maxIdxs];
     
     // pick idxs equally spaced indices in the range lower to upper and sort them into 
@@ -379,14 +379,14 @@ public:
     // Do an inPlaceInsertionSort() of a copyInsertion sort depending on whether the remaining loops are even or odd.  The reason is to
     // make sure that after all merges between the input arry and swap are done, the final sorted data is in arry.
     if (depthOdd) {
-      parallelFor(0L, numIterations, [&](uint64_t start) {
+      parallelFor((int64_t)0, numIterations, [&](uint64_t start) {
         int64_t lb = llround(start * spacing);
         int64_t le = llround((start + 1) * spacing) - 1;
         inPlaceInsertionSort<sortFor>(arry, lb, le);
         }, threads);
     }
     else {
-      parallelFor(0L, numIterations, [&](size_t start) {
+      parallelFor((int64_t)0, numIterations, [&](size_t start) {
         int64_t lb = llround(start * spacing);
         int64_t le = llround((start + 1) * spacing) - 1;
         copyInsertionSort<sortFor>(swap, arry, lb, le);
@@ -408,7 +408,7 @@ public:
 
       // determine at which level the merges are distributed among the threads or each merge is divided up by the number of threads
       if (d > 4) {
-        parallelFor(0L, numIterations, [&](size_t start) {
+        parallelFor((int64_t)0, numIterations, [&](size_t start) {
           int64_t i = start * 2;
           int64_t lb = llround(i * spacing);
           int64_t lm = llround((i + 1) * spacing);
@@ -451,7 +451,7 @@ public:
     if (depthOdd) {
       int64_t i;
       int64_t sel;
-      parallelFor(0L, ((len - lo) >> 3), [=](uint64_t start) {
+      parallelFor((int64_t)0, ((len - lo) >> 3), [=](uint64_t start) {
         int64_t i = start << 3;
         if (!getParity32(start << 2)) {
           testAndSwap <sortFor>(arry, i + 0);
@@ -474,7 +474,7 @@ public:
     } else {
       int64_t i;
       int64_t sel;
-      parallelFor(0L, ((len - lo) >> 3), [=](uint64_t strt) {
+      parallelFor((int64_t)0, ((len - lo) >> 3), [=](uint64_t strt) {
         int64_t i = strt << 3;
         if (!getParity32(strt << 2)) {
           testAndCopy<sortFor>(swap, arry, i + 0);
@@ -518,7 +518,7 @@ public:
       lo = len % incr; // calculate the number of left overs.
 
       int64_t sel;
-      auto* futures = parallelForNoWait(0L, len >> logIncr, [=](uint64_t strt) {
+      auto* futures = parallelForNoWait((int64_t)0, len >> logIncr, [=](uint64_t strt) {
         int64_t i = strt << logIncr;
         mergeFR(toPtr, fromPtr,i, i + incr - 1, getParity32(strt));
         }, threads);
@@ -531,7 +531,7 @@ public:
       //print("to", toPtr, 36);
       //print("swap", swap, 16);
     }
-    delete swap;
+    delete[] swap;
     swap = nullptr;
   }
 
@@ -554,7 +554,7 @@ public:
     if (!depthOdd) depth--;
     subdivideAndMergeFR<true>(arry, swap, 0, len - 1, depth, DIR, threadLevel);
 
-    delete swap;
+    delete[] swap;
     swap = nullptr;
   }
 
@@ -613,7 +613,7 @@ public:
     if (!depthOdd) depth--;
     subDivideAndMergeFF<DIR>(arry, swap, 0, len - 1, depth, threadLevel);
 
-    delete swap;
+    delete[] swap;
     swap = nullptr;
   }
 
@@ -738,7 +738,7 @@ public:
     double delta = double(len) / double(lThreads);
 
     //sort lThread segments of the input arry using the sort method provided in the function pointer
-    parallelFor(0, lThreads, [this, arry, delta, singleSort](int64_t i) {
+    parallelFor((size_t)0, lThreads, [this, arry, delta, singleSort](int64_t i) {
       int64_t lb = llround(i * delta);
       int64_t le = llround((i + 1) * delta);
       (this->*singleSort)(arry + lb, le - lb);
@@ -756,7 +756,7 @@ public:
     const int64_t depth = ceil(log2(threads)) - 1; // calculate the number of depth iterations
     bool depthOdd = (depth & 0x1) == 1; // and whether it's odd
     // if it is not odd, then we need to copy arry to swap
-    if (!depthOdd) parallelFor(0, threads, [arry, swap, delta](int64_t i) {
+    if (!depthOdd) parallelFor((size_t)0, threads, [arry, swap, delta](int64_t i) {
       int64_t lb = llround(i * delta);
       int64_t le = llround((i + 1) * delta);
       memcpy(swap + lb, arry + lb, (le - lb) * sizeof(T));
@@ -782,7 +782,7 @@ public:
           parallelMerge<sortFor>(toPtr, fromPtr, llround(start), llround(start + delta) - 1, llround(start + delta), len - 1, llround(start), len);
         } else { // use just copy the partial segment.
           double incr = double(len - start) / double(lThreads);
-          parallelFor(0, threads, [fromPtr, toPtr, start, incr](int64_t i) {
+          parallelFor((size_t)0, threads, [fromPtr, toPtr, start, incr](int64_t i) {
             int64_t lb = llround(start + i * incr);
             int64_t le = llround(start + (i + 1) * incr);
             memcpy(toPtr+lb, fromPtr+lb, (le - lb) * sizeof(T));
