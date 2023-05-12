@@ -6,9 +6,9 @@
 *SPDX - License - Identifier: BSD - 3 - Clause
 */
 
-//
 
 #include <iostream>
+#include <iomanip>
 #include "bfMergeSort.hpp"
 #include <random>
 #include <chrono>
@@ -19,7 +19,7 @@
 
 // a slight rewrite of the Romdomer class from
 // https://stackoverflow.com/questions/13445688/how-to-generate-a-random-number-in-c/53887645#53887645
-// Usage example
+// Usage: int64_t example
 // auto riTestData = RandomInterval<int64_t>(-10000000000LL, 10000000000LL, 1);
 // int64_t ri = riTestData();
 
@@ -39,6 +39,23 @@ public:
   RDT operator()() { return dist_(gen_); }
 };
 
+// documentation of program arguments;
+void printHelp() {
+  std::cout << "Usage:\n";
+  std::cout << "ParallelSortTest [-t <test number>] [-n <test_size> | -rs] [-minT <min threads>] [-maxT <max threads>] [-l <num tests per thread>] [-dr | -do | db] [-v | -nv]\n";
+  std::cout << "  -a <alrotithm number> indicates sort algorithm to run\n";
+  std::cout << "     1 = merge sort BF FF, 2 = merge sort BF FR, 3 = merge sort DF FR, 4 = merge sort DF FF, \n";
+  std::cout << "     5 = quick sort, 6 = call to std::sort().  Default = 1\n";
+  std::cout << "  -n <test size>: number of elements to sort on each test loop.\n";
+  std::cout << "  -rs: randomize the test size.  Default \n";
+  std::cout << "  -minT <min Threads>\n";
+  std::cout << "  -maxT <max Threads> minT and maxT set the minimum and maximum threads the program will loop over.  Defaults are 1 and 4 \n";
+  std::cout << "  -l <num tests per thread> sets tnu number of tests that will be run for each thread\n";
+  std::cout << "  -dr | do | -db set the type of data for each test; random or ordered or reverse ordered respectively.  Default is -dr\n";
+  std::cout << "  -v or -nv indicate whether to verify the sort  Default is -v\n";
+}
+
+
 // names for the available test data types
 const int64_t dtRandom = 0;
 const int64_t dtOrdered = 1;
@@ -47,7 +64,7 @@ const int64_t dtReverseOrdered = 2;
 int main(int argc, char *argv[]) {
 
   // default settings
-  bool fixedTestSize = true;
+  bool fixedTestSize = false;
   size_t fixedTestSizeNum = 1024 * 1024 * 16;
   size_t minThreads = 1;
   size_t maxThreads = 4;
@@ -79,6 +96,7 @@ int main(int argc, char *argv[]) {
         std::cout << "-t requires a non-zero integer argument." << std::endl;
         argError = true;
       }
+      fixedTestSize = true;
     }
     else if (strcmp(argv[arg], "-a") == 0) {
       arg++;
@@ -112,8 +130,14 @@ int main(int argc, char *argv[]) {
     else if (strcmp(argv[arg], "-v") == 0) {
       verifySort = true;
     }
+    else if (strcmp(argv[arg], "-h") == 0) {
+      printHelp();
+      return 0;
+    }
     else {
       std::cout << "Argument " << argv[arg] << " not recognized" << std::endl;
+      printHelp();
+      argError = true;
     }
   }
   if (argError) {
@@ -318,7 +342,7 @@ int main(int argc, char *argv[]) {
 
         // The verify portion makes sure the data is sorted correctly by checking that each array element is >= the one before it.
         // It also computes a checksum which is compared against the source data's checksum to check for data corruption.
-        parallelFor(1, test_size, [&errCnt, &postChecksum, test_data](size_t lc) {
+        parallelFor((int64_t)1, test_size, [&errCnt, &postChecksum, test_data](size_t lc) {
           static std::mutex lock;
           std::lock_guard<std::mutex> guard(lock);
           if (!(test_data[lc] >= test_data[lc - 1])) {
