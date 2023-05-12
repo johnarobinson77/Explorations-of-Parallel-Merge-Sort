@@ -92,9 +92,9 @@ Both of the depth-first algorithms have the same multi-threaded restrictions.  A
 
 ### Breadth-first Algorithms
 
-The following two algorithms are breadth-first because they calculate all of the merges that need to be calculated at a given level, starting with the finest level first and progressing to the course levels.  These algorithms are implemented with two nested for loops instead of recursion.  The inner loop iterates through the merges that must be done at a given level.  The outer loop iterates through the levels.  Ignoring optimizations for the moment, the first iteration of the outer does N/2 "merges" 1 data element each.  The next iteration does N/4 regions of 2 elements each.  The last iteration does one merge of N/2 elements each.
+The following two algorithms are breadth-first because they calculate all of the merges that need to be calculated at a given level, starting with the finest level first and progressing to the course levels.  These algorithms are implemented with two nested for loops instead of recursion.  The inner loop iterates through the merges that must be done at a given level.  The outer loop iterates through the levels.  Ignoring optimizations for the moment, the first iteration of the outer does N/2 "merges" 1 data element each.  The next iteration does N/4 regions of 2 elements each.  The last iteration does one merge of N/2 elements each.  The implementation of std::sort() in the standard c++ library uses a breadth first algorithm.
 
-The advantage of the breadth-first algorithm is that it is easy to parallelize the inner loop with any number of threads available and maintain nearly equal loading on each thread.  The number of usable threads is not restricted to a power of two like the depth-first algorithms.  All threads must synchronize before the next level of merging starts.
+Onr of the advantages of the breadth-first algorithm is that it is easy to parallelize the inner loop with any number of threads available and maintain nearly equal loading on each thread.  The number of usable threads is not restricted to a power of two like the depth-first algorithms.  All threads must synchronize before the next level of merging starts.
 
 mSortFF()
 
