@@ -1,5 +1,5 @@
-#ifndef PARALLEL_FOR
-#define PARALLEL_FOR
+#ifndef THIS_PARALLEL_FOR
+#define THIS_PARALLEL_FOR
 
 /**
  * Copyright (c) 2023 John Robinson.
@@ -13,9 +13,6 @@
 #include <mutex>
 #include <vector>
 #include <numeric>
-#include <atomic>
-#include <iomanip>
-#include <random>
 
 #define NDEBUG
 
@@ -24,11 +21,11 @@
 // into that many  segments and start starts separate threads to execute the first num_segs-1 segments
 // The last segment is run on the current thread.  
 // parallel_for returns after all treads segments have completed.
-template < typename FN >
-void parallelFor(size_t begin, size_t end, FN fn, int64_t num_segs = 1) {
+template< class RandomIt, class FN >
+void parallelFor(const RandomIt begin, const RandomIt end, FN fn, size_t num_segs = 1) {
 
   // compute the number iterations and if 0, then return
-  const std::size_t n = end - begin;
+  const size_t n = end - begin;
   if (n == 0) return;
   // if the number of elements is less than the number of segments or threads, reduce the number of segments
   if (n < num_segs) num_segs = n;
@@ -39,11 +36,11 @@ void parallelFor(size_t begin, size_t end, FN fn, int64_t num_segs = 1) {
   // the nearest integer ensures that the difference in the number of iterations that each thread will do is 
   // no greater than one.
   double seg_size = (double)n / (double)num_segs;
-  size_t sBeg = 0;
+  int64_t sBeg = 0;
   double sEnd = seg_size;
   // start threads for one less than the number of segments
   for (int64_t seg = 0; seg < num_segs-1; seg++) { 
-    futures.push_back(std::async(std::launch::async, [&](size_t lb, size_t le) {
+    futures.push_back(std::async(std::launch::async, [begin, fn](int64_t lb, int64_t le) {
 #ifndef NDEBUG
       {
         static std::mutex lock;
@@ -51,13 +48,13 @@ void parallelFor(size_t begin, size_t end, FN fn, int64_t num_segs = 1) {
         std::cout << "parallel_for: n == " << le - lb << " thread: " << std::this_thread::get_id() << '\n';
       }
 #endif // NDEBUG
-      for (size_t i = lb; i < le; i++) fn(i);
-      }, begin + sBeg, begin + llround(sEnd)));
+      for (int64_t i = lb; i < le; i++) fn(begin + i);
+      }, sBeg, llround(sEnd)));
     sBeg = llround(sEnd);
     sEnd += seg_size;
   }
   // execute the last segment in this thread
-  for (size_t i = begin + sBeg; i < begin + llround(sEnd); i++) fn(i);
+  for (int64_t i = sBeg; i < llround(sEnd); i++) fn(begin + i);
 
   // wait for the segments to complete
   for (int seg = 0; seg < futures.size(); seg++)
@@ -70,14 +67,14 @@ void parallelFor(size_t begin, size_t end, FN fn, int64_t num_segs = 1) {
 // The last segment is run on the current thread.  
 // parallelForBoWait returns before checking that all thread are done.  parallelForFinish() must be
 // called make sure all of the threads have finished.  
-template < typename FN >
-std::vector<std::future<void>>*  parallelForNoWait(size_t begin, size_t end, FN fn, int64_t num_segs = 1) {
+template< class RandomIt, class FN >
+std::vector<std::future<void>>*  parallelForNoWait(const RandomIt begin, const RandomIt end, FN fn, size_t num_segs = 1) {
   
   auto* futuresNW = new std::vector<std::future<void>>;
 
   // compute the number iterations and if 0, then return
   const std::size_t n = end - begin;
-  if (n == 0) return nullptr;
+  if (n == 0) return futuresNW;
   // if the number of elements is less than the number of segments or threads, reduce the number of segments
   if (n < num_segs) num_segs = n;
   // Compute the number of iterations to preform on each segment using a double to preserve the fraction.
@@ -85,18 +82,20 @@ std::vector<std::future<void>>*  parallelForNoWait(size_t begin, size_t end, FN 
   // the nearest integer ensures that the difference in the number of iterations that each thread will do is 
   // no greater than one.
   double seg_size = (double)n / (double)num_segs;
-  size_t sBeg = 0;
+  int64_t sBeg = 0;
   double sEnd = seg_size;
   // start threads for one less than the number of segments
+  static std::mutex lock;
   for (int64_t seg = 0; seg < num_segs - 1; seg++) {
-    futuresNW->push_back(std::async(std::launch::async, [&](size_t lb, size_t le) {
-      for (size_t i = lb; i < le; i++) fn(i);
-      }, begin + sBeg, begin + llround(sEnd)));
+    futuresNW->push_back(std::async(std::launch::async, [begin, fn](int64_t lb, int64_t le) {
+      for (int64_t i = lb; i < le; i++) fn(begin + i);
+      }, sBeg, llround(sEnd)));
     sBeg = llround(sEnd);
     sEnd += seg_size;
-    }
+  }
   // execute the last segment in this thread
-  for (size_t i = begin + sBeg; i < begin + llround(sEnd); i++) fn(i);
+  for (int64_t i = sBeg; i < llround(sEnd); i++) fn(begin + i);
+
   return futuresNW;
   }
 
@@ -108,6 +107,78 @@ void parallelForFinish(std::vector<std::future<void>>* futuresNW) {
   delete futuresNW;
 }
 
+#include <cmath>
+void testParallelFor(size_t threads) {
+  auto values = std::vector<double>(1000);
 
+  parallelFor((size_t)0, values.size(),
+    [&](int64_t i)
+    {
+      values[i] = std::sin(i * 0.001);
+    }, threads);
 
-#endif // PARALLEL_FOR
+  double total = 0;
+
+  for (int i = 0;  i < values.size(); i++)
+  {
+    total += values[i];
+    values[i] = 0;
+  }
+
+  std::cout << total << std::endl;
+
+  parallelFor(values.begin(), values.end() ,
+    [&](std::vector<double>::iterator vi)
+    {
+     *vi = std::sin((vi - values.begin()) * 0.001);
+    }, threads);
+
+  total = 0;
+
+  for (int i = 0; i < values.size(); i++)
+  {
+    total += values[i];
+    values[i] = 0;
+  }
+
+  std::cout << total << std::endl;
+
+  double avalues[1000];
+
+  parallelFor(avalues, avalues+1000,
+    [&](double* vi)
+    {
+      *vi = std::sin((vi - avalues) * 0.001);
+    }, threads);
+
+  total = 0;
+
+  for (int i = 0;  i < 1000; i++)
+  {
+    total += avalues[i];
+    avalues[i] = 0;
+  }
+
+  std::cout << total << std::endl;
+
+  auto f = parallelForNoWait((size_t)0, values.size(),
+    [&](int64_t i)
+    {
+      values[i] = std::sin(i * 0.001);
+    }, threads);
+
+  parallelForFinish(f);
+
+  total = 0;
+
+  for (int i = 0; i < values.size(); i++)
+  {
+    total += values[i];
+    values[i] = 0;
+  }
+
+  std::cout << total << std::endl;
+
+}
+
+#endif // THIS_PARALLEL_FOR
